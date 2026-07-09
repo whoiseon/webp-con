@@ -2,14 +2,14 @@ use std::path::Path;
 
 pub fn is_image_file(path: &Path) -> bool {
     match path.extension() {
-        Some(ext) => {
-            match ext.to_str() {
-                Some(ext_str) => {
-                    const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "bmp"];
-                    IMAGE_EXTENSIONS.iter().any(|ext| ext.eq_ignore_ascii_case(ext_str))
-                }
-                None => false,
+        Some(ext) => match ext.to_str() {
+            Some(ext_str) => {
+                const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "bmp"];
+                IMAGE_EXTENSIONS
+                    .iter()
+                    .any(|ext| ext.eq_ignore_ascii_case(ext_str))
             }
+            None => false,
         },
         None => false,
     }

@@ -1,11 +1,11 @@
-use std::path::Path;
-use indicatif::{ProgressBar, ProgressStyle};
-use webp::Encoder;
-use walkdir::WalkDir;
 use crate::summary::ConvertSummary;
-use crate::utils::{is_image_file, format_bytes};
-use log::{info, warn, error};
+use crate::utils::{format_bytes, is_image_file};
+use indicatif::{ProgressBar, ProgressStyle};
+use log::{error, info, warn};
 use rayon::prelude::*;
+use std::path::Path;
+use walkdir::WalkDir;
+use webp::Encoder;
 
 pub enum ConvertResult {
     Converted,
@@ -18,7 +18,12 @@ enum ConvertOutcome {
     Failed,
 }
 
-pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, quality: u8) -> anyhow::Result<ConvertResult> {
+pub fn convert_file_to_webp(
+    input: &Path,
+    output: &Path,
+    overwrite: bool,
+    quality: u8,
+) -> anyhow::Result<ConvertResult> {
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -33,11 +38,7 @@ pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, qualit
     let img = image::open(input)?;
     let rgba = img.to_rgba8();
 
-    let encoder = Encoder::from_rgba(
-        rgba.as_raw(),
-        rgba.width(),
-        rgba.height(),
-    );
+    let encoder = Encoder::from_rgba(rgba.as_raw(), rgba.width(), rgba.height());
     let webp = encoder.encode(quality as f32);
     std::fs::write(output, &*webp)?;
 
@@ -46,12 +47,25 @@ pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, qualit
     let ratio = after_size as f64 / before_size as f64;
     let saved_percent = (1.0 - ratio) * 100.0;
 
-    info!("converted: {}({}) -> {}({}) -> saved: {:.1}%", input.display(), format_bytes(before_size), output.display(), format_bytes(after_size), saved_percent);
+    info!(
+        "converted: {}({}) -> {}({}) -> saved: {:.1}%",
+        input.display(),
+        format_bytes(before_size),
+        output.display(),
+        format_bytes(after_size),
+        saved_percent
+    );
 
     Ok(ConvertResult::Converted)
 }
 
-pub fn convert_dir_to_webp(input: &Path, output_dir: &Path, overwrite: bool, summary: &mut ConvertSummary, quality: u8) -> anyhow::Result<()> {
+pub fn convert_dir_to_webp(
+    input: &Path,
+    output_dir: &Path,
+    overwrite: bool,
+    summary: &mut ConvertSummary,
+    quality: u8,
+) -> anyhow::Result<()> {
     let files: Vec<_> = WalkDir::new(input)
         .into_iter()
         .filter_map(Result::ok)
@@ -62,9 +76,9 @@ pub fn convert_dir_to_webp(input: &Path, output_dir: &Path, overwrite: bool, sum
     let pb = ProgressBar::new(files.len() as u64);
 
     let style = ProgressStyle::with_template(
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}"
+        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
     )?
-        .progress_chars("#>-");
+    .progress_chars("#>-");
 
     pb.set_style(style);
     pb.set_message("converting images");

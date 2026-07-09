@@ -1,7 +1,7 @@
 use anyhow::Result;
-use clap::{Parser, value_parser, Subcommand};
-use std::path::{PathBuf};
-use webp_con::converter::{convert_file_to_webp, convert_dir_to_webp, ConvertResult};
+use clap::{Parser, Subcommand, value_parser};
+use std::path::PathBuf;
+use webp_con::converter::{ConvertResult, convert_dir_to_webp, convert_file_to_webp};
 use webp_con::summary::ConvertSummary;
 
 #[derive(Subcommand, Debug)]
