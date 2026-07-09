@@ -6,13 +6,6 @@ pub struct ConvertSummary {
 }
 
 impl ConvertSummary {
-    pub fn print_done(&self) {
-        println!();
-        println!("==============================");
-        println!("Done!");
-        println!("==============================");
-    }
-
     pub fn print_summary(&self) {
         println!();
         println!("==============================");

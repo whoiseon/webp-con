@@ -1,18 +1,24 @@
 use std::path::Path;
+use indicatif::{ProgressBar, ProgressStyle};
 use webp::Encoder;
 use walkdir::WalkDir;
 use crate::summary::ConvertSummary;
 use crate::utils::{is_image_file, format_bytes};
+use log::{info, warn, error};
 
-pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, summary: &mut ConvertSummary, quality: u8) -> anyhow::Result<()> {
+pub enum ConvertResult {
+    Converted,
+    Skipped,
+}
+
+pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, quality: u8) -> anyhow::Result<ConvertResult> {
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
     if !overwrite && output.exists() {
-        println!("skipped: {} already exists", output.display());
-        summary.add_skipped();
-        return Ok(());
+        warn!("skipped: {} already exists", output.display());
+        return Ok(ConvertResult::Skipped);
     }
 
     let before_size = std::fs::metadata(input)?.len();
@@ -33,17 +39,30 @@ pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, summar
     let ratio = after_size as f64 / before_size as f64;
     let saved_percent = (1.0 - ratio) * 100.0;
 
-    summary.add_converted();
-    println!("converted: {}({}) -> {}({}) -> saved: {:.1}%", input.display(), format_bytes(before_size), output.display(), format_bytes(after_size), saved_percent);
+    info!("converted: {}({}) -> {}({}) -> saved: {:.1}%", input.display(), format_bytes(before_size), output.display(), format_bytes(after_size), saved_percent);
 
-    Ok(())
+    Ok(ConvertResult::Converted)
 }
 
 pub fn convert_dir_to_webp(input: &Path, output_dir: &Path, overwrite: bool, summary: &mut ConvertSummary, quality: u8) -> anyhow::Result<()> {
-    for entry in WalkDir::new(input) {
-        let entry = entry?;
-        let path = entry.path();
+    let files: Vec<_> = WalkDir::new(input)
+        .into_iter()
+        .filter_map(Result::ok)
+        .map(|entry| entry.into_path())
+        .filter(|path| path.is_file() && is_image_file(path))
+        .collect();
 
+    let pb = ProgressBar::new(files.len() as u64);
+
+    let style = ProgressStyle::with_template(
+        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}"
+    )?
+    .progress_chars("#>-");
+
+    pb.set_style(style);
+    pb.set_message("converting images");
+
+    for path in files {
         if path.is_file() && is_image_file(&path) {
             let relative_path = path.strip_prefix(input)?;
 
@@ -51,14 +70,23 @@ pub fn convert_dir_to_webp(input: &Path, output_dir: &Path, overwrite: bool, sum
             output_path.push(relative_path);
             output_path.set_extension("webp");
 
-            match convert_file_to_webp(path, &output_path, overwrite, summary, quality) {
-                Ok(()) => {},
+            match convert_file_to_webp(&path, &output_path, overwrite, quality) {
+                Ok(ConvertResult::Converted) => {
+                    summary.add_converted();
+                },
+                Ok(ConvertResult::Skipped) => {
+                    summary.add_skipped();
+                },
                 Err(err) => {
                     summary.add_failed();
-                    eprintln!("failed: {} ({})", path.display(), err);
+                    error!("failed: {} ({})", path.display(), err);
                 }
             }
+
+            pb.inc(1);
         }
+
+        pb.finish_and_clear();
     }
 
     Ok(())

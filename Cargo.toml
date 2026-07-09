@@ -9,3 +9,6 @@ anyhow = "1.0.103"
 clap = { version = "4", features = ["derive"] }
 walkdir = "2.5.0"
 webp = "0.3.1"
+log = "0.4.33"
+env_logger = "0.11.11"
+indicatif = "0.18.6"
