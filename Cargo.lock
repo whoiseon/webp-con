@@ -1370,6 +1370,7 @@ dependencies = [
  "image",
  "indicatif",
  "log",
+ "rayon",
  "walkdir",
  "webp",
 ]

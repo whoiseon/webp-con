@@ -5,10 +5,17 @@ use walkdir::WalkDir;
 use crate::summary::ConvertSummary;
 use crate::utils::{is_image_file, format_bytes};
 use log::{info, warn, error};
+use rayon::prelude::*;
 
 pub enum ConvertResult {
     Converted,
     Skipped,
+}
+
+enum ConvertOutcome {
+    Converted,
+    Skipped,
+    Failed,
 }
 
 pub fn convert_file_to_webp(input: &Path, output: &Path, overwrite: bool, quality: u8) -> anyhow::Result<ConvertResult> {
@@ -57,36 +64,54 @@ pub fn convert_dir_to_webp(input: &Path, output_dir: &Path, overwrite: bool, sum
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}"
     )?
-    .progress_chars("#>-");
+        .progress_chars("#>-");
 
     pb.set_style(style);
     pb.set_message("converting images");
 
-    for path in files {
-        if path.is_file() && is_image_file(&path) {
-            let relative_path = path.strip_prefix(input)?;
+    if files.is_empty() {
+        println!("skipped: no files to convert");
+        return Ok(());
+    }
+
+    let results: Vec<ConvertOutcome> = files
+        .par_iter()
+        .map(|path| {
+            let relative_path = match path.strip_prefix(input) {
+                Ok(path) => path,
+                Err(err) => {
+                    pb.inc(1);
+                    error!("failed: {} ({})", path.display(), err);
+                    return ConvertOutcome::Failed;
+                }
+            };
 
             let mut output_path = output_dir.to_path_buf();
             output_path.push(relative_path);
             output_path.set_extension("webp");
 
-            match convert_file_to_webp(&path, &output_path, overwrite, quality) {
-                Ok(ConvertResult::Converted) => {
-                    summary.add_converted();
-                },
-                Ok(ConvertResult::Skipped) => {
-                    summary.add_skipped();
-                },
+            let outcome = match convert_file_to_webp(path, &output_path, overwrite, quality) {
+                Ok(ConvertResult::Converted) => ConvertOutcome::Converted,
+                Ok(ConvertResult::Skipped) => ConvertOutcome::Skipped,
                 Err(err) => {
-                    summary.add_failed();
                     error!("failed: {} ({})", path.display(), err);
+                    ConvertOutcome::Failed
                 }
-            }
+            };
 
             pb.inc(1);
-        }
+            outcome
+        })
+        .collect();
 
-        pb.finish_and_clear();
+    pb.finish_and_clear();
+
+    for result in results {
+        match result {
+            ConvertOutcome::Converted => summary.add_converted(),
+            ConvertOutcome::Skipped => summary.add_skipped(),
+            ConvertOutcome::Failed => summary.add_failed(),
+        }
     }
 
     Ok(())
