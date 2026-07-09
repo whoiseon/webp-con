@@ -21,8 +21,12 @@ enum Commands {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "webp-con")]
-#[command(about = "Convert images to WebP")]
+#[command(
+    name = "webp-con",
+    version,
+    about = "Converts a webp file into a WebP",
+    long_about = None
+)]
 struct Args {
     #[command(subcommand)]
     command: Commands,
